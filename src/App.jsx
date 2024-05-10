@@ -3,6 +3,7 @@ import Navbar from './components/Navbar'
 import Game from './components/Game'
 import Memu from './components/Memu'
 
+
 const App = () => {
     return (
         <main className='bg-slate-300/20'>
