@@ -69,7 +69,7 @@ const Game = () => {
         // Axes Helper
         const axesHelper = new THREE.AxesHelper(5);
         axesHelper.position.set(1, 1, 1); // Move the axes helper to the position (1, 1, 1)
-        // scene.add(axesHelper);
+        scene.add(axesHelper);
 
         // The X-axis is red.
         // The Y-axis is green.
@@ -119,7 +119,6 @@ const Game = () => {
         let cubes = []
         let positions = [];
 
-
         // Create a cube
         const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
         const cubeMaterial = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
@@ -136,7 +135,7 @@ const Game = () => {
 
         let axesHelpercube = new THREE.AxesHelper(1);
         // Add it as a child of the cube
-        // cube.add(axesHelpercube);
+        cube.add(axesHelpercube);
         cube.receiveShadow = true;
         scene.add(cube);
 
@@ -180,17 +179,10 @@ const Game = () => {
         // Function to set the velocity with a delay
         async function setVelocityWithDelay(cubes, localNegativeXAxis, speed) {
             const delayBetweenCubes = 1000 / 60 * 60; // 60 frames delay in milliseconds (1000ms/60fps * 60)
-            let lookAtPoint = new THREE.Vector3();
 
             for (let i = 0; i < cubes.length; i++) {
                 // Set the velocity for the current cube
                 cubes[i].cannonjs.velocity.set(localNegativeXAxis.x * speed, localNegativeXAxis.y * speed, localNegativeXAxis.z * speed);
-
-
-                lookAtPoint.addVectors(cubes[i].threejs.position, cubes[i].cannonjs.velocity);
-
-                // Make the cube look at the point
-                cube[i].threejs.lookAt(lookAtPoint);
 
                 // If it's not the last cube, wait for the delay before continuing to the next cube
                 if (i < cubes.length - 1) {
@@ -345,22 +337,22 @@ const Game = () => {
             world.step(1 / 140); // Step the physics world
         }
 
-        // Adjusted createCube function to position the new cube correctly
+        // Function to handle the creation of a new cube
         function createCube() {
             let geometry = new THREE.BoxGeometry(1, 1, 1);
-            let material = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
+            let material = new THREE.MeshPhongMaterial({ color: 0xff0000 });
             let newCube = new THREE.Mesh(geometry, material);
             const shape = new CANNON.Box(new CANNON.Vec3(1 / 2, 1 / 2, 1 / 2));
             let mass = 7;
             let newbody = new CANNON.Body({ mass });
 
-            // Position the new cube correctly based on the last cube in the array
+            // Get the last cube in the array
             let lastCube = cubes[cubes.length - 1];
             if (lastCube) {
-                newCube.position.set(lastCube.threejs.position.x, lastCube.threejs.position.y, lastCube.threejs.position.z - 0.5);
-            } else {
-                // Initial position for the very first cube
-                newCube.position.set(0, 0, 0);
+                newCube.position.set(lastCube.threejs.position.x, lastCube.threejs.position.y, lastCube.threejs.position.z - 1);
+            } else if (positions.length === 60) {
+                console.log('positions.length === 60');
+                newCube.position.copy(positions[0]);
             }
             newbody.position.copy(newCube.position);
 
@@ -372,7 +364,7 @@ const Game = () => {
                 threejs: newCube,
                 cannonjs: newbody,
                 box: newcubeBox,
-                previousPositions: [] // Array to store previous positions
+                previousPosition: lastCube ? lastCube.threejs.position.clone() : new THREE.Vector3()
             });
             console.log(cubes.length);
             return newCube;
@@ -381,7 +373,7 @@ const Game = () => {
 
         function createSphere() {
             let geometry = new THREE.SphereGeometry(0.5, 32, 32);
-            let material = new THREE.MeshPhongMaterial({ color: 0xff0000 });
+            let material = new THREE.MeshPhongMaterial({ color: 0xff000 });
             let newSphere = new THREE.Mesh(geometry, material);
 
             newSphere.castShadow = true;
@@ -392,7 +384,7 @@ const Game = () => {
             return newSphere;
         };
 
-        // Adjusted checkCollisions function to handle collisions properly
+        // Function to handle collision detection
         function checkCollisions() {
             let cubeBoundingBox = new THREE.Box3().setFromObject(cube);
 
@@ -430,10 +422,9 @@ const Game = () => {
 
             checkCollisions();
 
-            const delayFrames = 10;
             // Update the positions of the cubes with a delay
             for (let i = cubes.length - 1; i > 0; i--) {
-                let targetIndex = positions.length - (i + delayFrames); // Adjust the delay factor (e.g., 10 frames)
+                let targetIndex = positions.length - (i + 1) * 10; // Adjust the delay factor (e.g., 10 frames)
                 if (targetIndex >= 0) {
                     cubes[i].threejs.position.copy(positions[targetIndex]);
                     cubes[i].cannonjs.position.copy(positions[targetIndex]);
@@ -447,8 +438,7 @@ const Game = () => {
             }
 
             // If the positions array has more than 60 positions, remove the oldest one
-            let MaxElements = cubes.length * delayFrames;
-            if (positions.length > MaxElements) {
+            if (positions.length > 600) {
                 positions.shift();
             }
 
