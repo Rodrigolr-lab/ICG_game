@@ -22,7 +22,11 @@ const Game = () => {
     const mountRef = useRef(null);
     const snakeBody = [];
     let snakeLength = 3;
-
+    const delayFrames = 10;
+    let speed = 10;
+    let speedBoostActive = false;
+    let speedBoostTimer = null;
+    const speedBoostDuration = 3000; // 3 seconds
 
     useEffect(() => {
         // Cannon.js
@@ -38,8 +42,6 @@ const Game = () => {
 
         // Camera
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        // camera.position.set(5, 5, 0);
-        // camera.lookAt(0, 0, 0);
 
         // Renderer
         const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -69,7 +71,7 @@ const Game = () => {
         // Axes Helper
         const axesHelper = new THREE.AxesHelper(5);
         axesHelper.position.set(1, 1, 1); // Move the axes helper to the position (1, 1, 1)
-        // scene.add(axesHelper);
+        scene.add(axesHelper);
 
         // The X-axis is red.
         // The Y-axis is green.
@@ -83,19 +85,19 @@ const Game = () => {
             const spheresBox = [];
             const shephersBodies = [];
 
-
             // Generate random spheres
-            for (let i = 0; i < 100; i++) {
-                const sphereGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+            for (let i = 0; i < 200; i++) {
+                const sphereGeometry = new THREE.SphereGeometry(0.5, 12, 12);
                 const sphereMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
                 const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
                 sphere.castShadow = true;
                 sphere.receiveShadow = true;
+
                 let sphereBox = new THREE.Sphere(sphere.position, 0.5);
                 spheresBox.push(sphereBox);
                 // let sphereBoundingBox = new THREE.Box3().setFromObject(sphere);
 
-                const shape = new CANNON.Sphere(new CANNON.Vec3(0.5 / 2, 32 / 2, 32 / 2));
+                const shape = new CANNON.Sphere(new CANNON.Vec3(0.5 / 2, 12 / 2, 12 / 2));
                 // ele tem uma condicao a definir se cai ou nao
                 let mass = 1;
                 let bodyspheres = new CANNON.Body({ mass });
@@ -104,9 +106,9 @@ const Game = () => {
                 shephersBodies.push(bodyspheres);
 
                 // Set the position to a random value
-                sphere.position.x = Math.random() * 20 - 10;
-                sphere.position.y = Math.random() * 20 - 10;
-                sphere.position.z = Math.random() * 20 - 10;
+                sphere.position.x = Math.random() * 100 - 50;
+                sphere.position.y = Math.random() * 100 - 50;
+                sphere.position.z = Math.random() * 100 - 50;
 
                 scene.add(sphere);
                 spheres.push(sphere);
@@ -119,20 +121,32 @@ const Game = () => {
         let cubes = []
         let positions = [];
 
-
-        // Create a cube
-        const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
+        const cubeGeometry = new THREE.SphereGeometry(0.5, 32, 32);
         const cubeMaterial = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
         const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-        const shape = new CANNON.Box(new CANNON.Vec3(1 / 2, 1 / 2, 1 / 2));
+        const shape = new CANNON.Sphere(new CANNON.Vec3(0.5 / 2, 12 / 2, 12 / 2));
         // ele tem uma condicao a definir se cai ou nao
         let mass = 7;
         let body = new CANNON.Body({ mass });
         body.position.copy(cube.position);
         world.addBody(body);
+
         // let cubeBox = new THREE.Box3().setFromObject(cube);
-        let cubeBox = new THREE.Box3(new THREE.Vector3(), new THREE.Vector3());
-        cubeBox.setFromObject(cube);
+        let cubeBox = new THREE.Sphere(cube.position, 0.5);
+        // cubeBox.setFromObject(cube);
+
+        // Create the body segments
+        const bodySegments = [];
+        const segmentGeometry = new THREE.SphereGeometry(0.5, 12, 12);
+        const segmentMaterial = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
+
+        // Initial body segments
+        for (let i = 0; i < 5; i++) {
+            const segment = new THREE.Mesh(segmentGeometry, segmentMaterial);
+            segment.position.x = -i;
+            bodySegments.push(segment);
+            scene.add(segment);
+        }
 
         let axesHelpercube = new THREE.AxesHelper(1);
         // Add it as a child of the cube
@@ -175,110 +189,108 @@ const Game = () => {
         // velocidaded incial
         let localNegativeXAxis = new THREE.Vector3(0, 0, -2).applyQuaternion(cube.quaternion);
         // angulo de rotacao
-        let turningangle = 0.05;
+        let turningangle = 0.025;
 
         // Function to set the velocity with a delay
         async function setVelocityWithDelay(cubes, localNegativeXAxis, speed) {
-            const delayBetweenCubes = 1000 / 60 * 60; // 60 frames delay in milliseconds (1000ms/60fps * 60)
-            let lookAtPoint = new THREE.Vector3();
+            const delayBetweenCubes = 1000 / 60 * delayFrames; // 60 frames delay in milliseconds (1000ms/60fps * 60)
 
+            let lookAtPoint = new THREE.Vector3();
+            // console.log("------ update the velocity of the cubes with a delay setVelocityWithDelay;");
             for (let i = 0; i < cubes.length; i++) {
                 // Set the velocity for the current cube
                 cubes[i].cannonjs.velocity.set(localNegativeXAxis.x * speed, localNegativeXAxis.y * speed, localNegativeXAxis.z * speed);
 
-
                 lookAtPoint.addVectors(cubes[i].threejs.position, cubes[i].cannonjs.velocity);
 
                 // Make the cube look at the point
-                cube[i].threejs.lookAt(lookAtPoint);
+                cubes[i].threejs.lookAt(lookAtPoint);
 
                 // If it's not the last cube, wait for the delay before continuing to the next cube
                 if (i < cubes.length - 1) {
                     await new Promise(resolve => setTimeout(resolve, delayBetweenCubes));
                 }
             }
+
+            for (let i = cubes.length - 1; i > 0; i--) {
+                let targetIndex = positions.length - (i + delayFrames); // Adjust the delay factor (e.g., 10 frames)
+
+                if (targetIndex >= 0) {
+                    cubes[i].threejs.position.copy(positions[targetIndex]);
+                    cubes[i].cannonjs.position.copy(positions[targetIndex]);
+                }
+            }
         }
+
+        let direction = new THREE.Vector3();
 
         function updatePhysics() {
             // console.log(body.velocity.x, body.velocity.y, body.velocity.z);
+            cubes[0].cannonjs.velocity.set(localNegativeXAxis.x * speed, localNegativeXAxis.y * speed, localNegativeXAxis.z * speed);
+            cubes[0].threejs.position.copy(cubes[0].cannonjs.position);
 
             // define the cubes X axis
             let localXAxis = new THREE.Vector3(2, 0, 0).applyQuaternion(cube.quaternion);
             //  define the cubes Y axis
             let localYAxis = new THREE.Vector3(0, 2, 0).applyQuaternion(cube.quaternion);
 
-            let speed = 10;
-            // body.velocity.set(localNegativeXAxis.x * speed, localNegativeXAxis.y * speed, localNegativeXAxis.z * speed);
-
-            // cubes.forEach(cube => {
-            //     // Convert the rotated velocity back to a CANNON.Vec3 and apply it to the cube's body velocity
-            //     cube.cannonjs.velocity.set(localNegativeXAxis.x * speed, localNegativeXAxis.y * speed, localNegativeXAxis.z * speed);
-            // });
-
             setVelocityWithDelay(cubes, localNegativeXAxis, speed);
-
 
             if (keysPressed.w) {
                 localNegativeXAxis.applyAxisAngle(localXAxis, turningangle);
 
-                // Convert the rotated velocity back to a CANNON.Vec3 and apply it to body.velocity
-                // body.velocity.set(localNegativeXAxis.x * speed, localNegativeXAxis.y * speed, localNegativeXAxis.z * speed);
-
-                // cubes.forEach(cube => {
-                //     // Convert the rotated velocity back to a CANNON.Vec3 and apply it to the cube's body velocity
-                //     cube.cannonjs.velocity.set(localNegativeXAxis.x * speed, localNegativeXAxis.y * speed, localNegativeXAxis.z * speed);
-                // });
                 setVelocityWithDelay(cubes, localNegativeXAxis, speed);
 
 
-                console.log("w");
+                // console.log("w");
             }
             if (keysPressed.a) {
                 localNegativeXAxis.applyAxisAngle(localYAxis, turningangle);
 
-                // Convert the rotated velocity back to a CANNON.Vec3 and apply it to body.velocity
-                // body.velocity.set(localNegativeXAxis.x * speed, localNegativeXAxis.y * speed, localNegativeXAxis.z * speed);
-
-                // cubes.forEach(cube => {
-                //     // Convert the rotated velocity back to a CANNON.Vec3 and apply it to the cube's body velocity
-                //     cube.cannonjs.velocity.set(localNegativeXAxis.x * speed, localNegativeXAxis.y * speed, localNegativeXAxis.z * speed);
-                // });
                 setVelocityWithDelay(cubes, localNegativeXAxis, speed);
 
-                console.log("a");
+                // console.log("a");
             }
             if (keysPressed.s) {
                 localNegativeXAxis.applyAxisAngle(localXAxis, -turningangle);
-
-                // Convert the rotated velocity back to a CANNON.Vec3 and apply it to body.velocity
-                // body.velocity.set(localNegativeXAxis.x * speed, localNegativeXAxis.y * speed, localNegativeXAxis.z * speed);
 
                 cubes.forEach(cube => {
                     // Convert the rotated velocity back to a CANNON.Vec3 and apply it to the cube's body velocity
                     cube.cannonjs.velocity.set(localNegativeXAxis.x * speed, localNegativeXAxis.y * speed, localNegativeXAxis.z * speed);
                 });
 
-                console.log("s");
+                // console.log("s");
             }
             if (keysPressed.d) {
                 localNegativeXAxis.applyAxisAngle(localYAxis, -turningangle);
 
-                // Convert the rotated velocity back to a CANNON.Vec3 and apply it to body.velocity
-                // body.velocity.set(localNegativeXAxis.x * speed, localNegativeXAxis.y * speed, localNegativeXAxis.z * speed);
-
-                // cubes.forEach(cube => {
-                //     // Convert the rotated velocity back to a CANNON.Vec3 and apply it to the cube's body velocity
-                //     cube.cannonjs.velocity.set(localNegativeXAxis.x * speed, localNegativeXAxis.y * speed, localNegativeXAxis.z * speed);
-                // });
                 setVelocityWithDelay(cubes, localNegativeXAxis, speed);
 
-                console.log("d");
+                // console.log("d");
             }
+
+            let currentSpeed = speed;
+
             if (keysPressed[' ']) {
-                // body.velocity.set(0, 0, 0);
-                // brake != brake;
-                console.log("space");
+                if (!speedBoostActive) {
+                    speedBoostActive = true;
+                    currentSpeed *= 4; // Multiply the speed by 4
+
+                    // Start the speed boost timer
+                    speedBoostTimer = setTimeout(() => {
+                        speedBoostActive = false;
+                        currentSpeed = speed; // Reset the speed to the original value
+                    }, speedBoostDuration);
+                }
+            } else {
+                // Reset the speed boost if the space key is released
+                if (speedBoostActive) {
+                    clearTimeout(speedBoostTimer);
+                    speedBoostActive = false;
+                    currentSpeed = speed;
+                }
             }
+            setVelocityWithDelay(cubes, localNegativeXAxis, currentSpeed);
 
             cubes.forEach(cube => {
                 let lookAtPoint = new THREE.Vector3();
@@ -288,19 +300,7 @@ const Game = () => {
                 cube.threejs.lookAt(lookAtPoint);
             });
 
-            // Update positions of the cubes to follow the previous one
-            for (let i = cubes.length - 1; i > 0; i--) {
-                cubes[i].threejs.position.copy(cubes[i - 1].threejs.position);
-                cubes[i].cannonjs.position.copy(cubes[i - 1].cannonjs.position);
-            }
-
-            cube.position.copy(body.position); // Atualizar cubo
-            cubes.forEach(cube => {
-                cube.threejs.position.copy(cube.cannonjs.position);
-            });
-
-            // Calculate direction of movement
-            let direction = new THREE.Vector3().subVectors(
+            direction = new THREE.Vector3().subVectors(
                 new THREE.Vector3(cube.position.x, cube.position.y, cube.position.z),
                 new THREE.Vector3(previousPositionx.x, previousPositionx.y, previousPositionx.z)
             ).normalize();
@@ -345,28 +345,47 @@ const Game = () => {
             world.step(1 / 140); // Step the physics world
         }
 
-        // Adjusted createCube function to position the new cube correctly
         function createCube() {
-            let geometry = new THREE.BoxGeometry(1, 1, 1);
+            let highResGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+            let lowResGeometry = new THREE.SphereGeometry(0.5, 12, 12);
             let material = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
-            let newCube = new THREE.Mesh(geometry, material);
-            const shape = new CANNON.Box(new CANNON.Vec3(1 / 2, 1 / 2, 1 / 2));
+            let newCube = new THREE.Mesh(lowResGeometry, material);
+
+            if (!newCube) {
+                console.error('Failed to create new cube');
+                return;
+            }
+
+            const shape = new CANNON.Sphere(new CANNON.Vec3(0.5 / 2, 32 / 2, 32 / 2));
             let mass = 7;
             let newbody = new CANNON.Body({ mass });
 
-            // Position the new cube correctly based on the last cube in the array
+            // Position the new cube correctly based on the existing cubes
             let lastCube = cubes[cubes.length - 1];
             if (lastCube) {
-                newCube.position.set(lastCube.threejs.position.x, lastCube.threejs.position.y, lastCube.threejs.position.z - 0.5);
+                // Calculate the direction vector from the second-to-last cube to the last cube
+                const directionVector = cubes.length > 1
+                    ? new THREE.Vector3().subVectors(lastCube.threejs.position, cubes[cubes.length - 2].threejs.position).normalize()
+                    : new THREE.Vector3(0, 0, -1); // Default direction if there's only one cube
+
+                // Set the position of the new cube based on the direction vector and a fixed distance
+                const distance = 1; // Adjust this value to control the distance between cubes
+                newCube.position.copy(lastCube.threejs.position).add(directionVector.multiplyScalar(distance));
             } else {
                 // Initial position for the very first cube
                 newCube.position.set(0, 0, 0);
             }
+
             newbody.position.copy(newCube.position);
 
             world.addBody(newbody);
-            let newcubeBox = new THREE.Box3(new THREE.Vector3(), new THREE.Vector3());
-            newcubeBox.setFromObject(newCube);
+            let newcubeBox = new THREE.Sphere(newCube.position, 0.5);
+
+            if (newCube && scene) {
+                scene.add(newCube);
+            } else {
+                console.error('Failed to add new cube to the scene');
+            }
 
             cubes.push({
                 threejs: newCube,
@@ -374,20 +393,20 @@ const Game = () => {
                 box: newcubeBox,
                 previousPositions: [] // Array to store previous positions
             });
-            console.log(cubes.length);
-            return newCube;
-        };
 
+            console.log(cubes.length + "cubes length");
+            return newCube;
+        }
 
         function createSphere() {
-            let geometry = new THREE.SphereGeometry(0.5, 32, 32);
+            let geometry = new THREE.SphereGeometry(0.5, 12, 12);
             let material = new THREE.MeshPhongMaterial({ color: 0xff0000 });
             let newSphere = new THREE.Mesh(geometry, material);
 
             newSphere.castShadow = true;
             newSphere.receiveShadow = true;
             // Set the position of the new sphere to be a random position within the scene
-            newSphere.position.set(Math.random() * 10 - 5, Math.random() * 10 - 5, Math.random() * 10 - 5);
+            newSphere.position.set(Math.random() * 100 - 50, Math.random() * 100 - 50, Math.random() * 100 - 50);
 
             return newSphere;
         };
@@ -403,9 +422,25 @@ const Game = () => {
                     console.log('collision detected');
                     scene.remove(spheres[i]);
 
-                    // Create a new cube and sphere
-                    let newCube = createCube();
-                    scene.add(newCube);
+                    // Create a new body segment
+                    const segmentGeometry = new THREE.SphereGeometry(0.5, 12, 12);
+                    const segmentMaterial = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
+                    const newSegment = new THREE.Mesh(segmentGeometry, segmentMaterial);
+
+                    // Position the new segment at the end of the snake
+                    const lastSegment = bodySegments[bodySegments.length - 1];
+                    if (lastSegment) {
+                        newSegment.position.copy(lastSegment.position);
+                        newSegment.position.sub(direction.divideScalar(10));
+                    } else {
+                        newSegment.position.copy(cube.position);
+                        newSegment.position.sub(direction.divideScalar(10));
+                    }
+
+                    // Add the new segment to the scene and the bodySegments array
+                    scene.add(newSegment);
+                    bodySegments.push(newSegment);
+
                     let newSphere = createSphere();
                     scene.add(newSphere);
 
@@ -421,25 +456,29 @@ const Game = () => {
         let clock = new THREE.Clock();
         // Animation
         const animate = function () {
+
+            // Previous position of the cube
+
             let deltaTime = clock.getDelta();
             requestAnimationFrame(animate);
-            controls.update();
+
             if (cubes.length > 0) {
                 camera.lookAt(cubes[0].threejs.position);
             }
 
             checkCollisions();
 
-            const delayFrames = 10;
-            // Update the positions of the cubes with a delay
-            for (let i = cubes.length - 1; i > 0; i--) {
-                let targetIndex = positions.length - (i + delayFrames); // Adjust the delay factor (e.g., 10 frames)
-                if (targetIndex >= 0) {
-                    cubes[i].threejs.position.copy(positions[targetIndex]);
-                    cubes[i].cannonjs.position.copy(positions[targetIndex]);
-                }
-            }
             updatePhysics(deltaTime);
+
+            // Update the body segments' positions
+            for (let i = bodySegments.length - 1; i > 0; i--) {
+                bodySegments[i].position.copy(bodySegments[i - 1].position);
+            }
+            direction.divideScalar(10);
+            if (bodySegments.length > 0) {
+                bodySegments[0].position.copy(cube.position);
+                bodySegments[0].position.sub(direction);
+            }
 
             // Add the current position of the first cube to the positions array
             if (cubes.length > 0) {
