@@ -1,10 +1,26 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { gsap } from 'gsap';
 import { Matrix4 } from 'three';
 import RAPIER from '@dimforge/rapier3d';
 import * as CANNON from 'cannon';
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
+import HdrFile from "../assets/sky2.hdr";
+import { CubeTextureLoader } from 'three';
+import posx from '../assets/Lycksele2/posx.png';
+import negx from '../assets/Lycksele2/negx.png';
+import posy from '../assets/Lycksele2/posy.png';
+import negy from '../assets/Lycksele2/negy.png';
+import posz from '../assets/Lycksele2/posz.png';
+import negz from '../assets/Lycksele2/negz.png';
+
+import { Canvas } from '@react-three/fiber';
+import GameOverlay from './GameOverlay';
+import { Helmet } from 'react-helmet';
+
+
+
 // game physics?
 let camera, scene, renderer;
 let world;
@@ -21,12 +37,12 @@ let keysPressed = {
 const Game = () => {
     const mountRef = useRef(null);
     const snakeBody = [];
-    let snakeLength = 3;
+    const [score, setScore] = useState(0);
+    const [health, setHealth] = useState(3000);
     const delayFrames = 10;
-    let speed = 10;
-    let speedBoostActive = false;
-    let speedBoostTimer = null;
-    const speedBoostDuration = 3000; // 3 seconds
+    let speed = 20;
+    let speedBoostDuration = 3000; // 3 seconds
+
 
     useEffect(() => {
         // Cannon.js
@@ -38,7 +54,13 @@ const Game = () => {
 
         // Scene
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x87ceeb);
+        const cubeTextureLoader = new CubeTextureLoader();
+        const skyboxTexture = cubeTextureLoader.load([
+            posx, negx, posy, negy, posz, negz
+        ]);
+        scene.background = skyboxTexture;
+        scene.environment = skyboxTexture;
+        // Increase or decrease this value to adjust the exposure
 
         // Camera
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -47,31 +69,31 @@ const Game = () => {
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.shadowMap.enabled = true;
         renderer.setSize(window.innerWidth, window.innerHeight);
-
+        window.addEventListener('resize', () => {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            camera.aspext = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+        })
         // OrbitControls
+        renderer.toneMappingExposure = 0.3;
+
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.update();
 
         // lights
         const light = new THREE.DirectionalLight(0xffffff, 1.5);
-        light.position.set(0, 100, 0).normalize();
-        // light.shadow.camera.near = 0.1;
-        // light.shadow.camera.far = 1024;
+        light.position.set(-1000, 0, 1000).normalize();
         light.castShadow = true;
-        // teste para corrigir sombras 
-        // light.shadow.mapSize.width = 1024; // default is 512
-        // light.shadow.mapSize.height = 1024; // default is 512
         scene.add(light);
 
         // Ambient light
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-        // ambientLight.castShadow = true;
         scene.add(ambientLight);
 
         // Axes Helper
         const axesHelper = new THREE.AxesHelper(5);
         axesHelper.position.set(1, 1, 1); // Move the axes helper to the position (1, 1, 1)
-        scene.add(axesHelper);
+        // scene.add(axesHelper);
 
         // The X-axis is red.
         // The Y-axis is green.
@@ -87,7 +109,7 @@ const Game = () => {
 
             // Generate random spheres
             for (let i = 0; i < 200; i++) {
-                const sphereGeometry = new THREE.SphereGeometry(0.5, 12, 12);
+                const sphereGeometry = new THREE.SphereGeometry(1, 12, 12);
                 const sphereMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
                 const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
                 sphere.castShadow = true;
@@ -97,7 +119,7 @@ const Game = () => {
                 spheresBox.push(sphereBox);
                 // let sphereBoundingBox = new THREE.Box3().setFromObject(sphere);
 
-                const shape = new CANNON.Sphere(new CANNON.Vec3(0.5 / 2, 12 / 2, 12 / 2));
+                const shape = new CANNON.Sphere(new CANNON.Vec3(1 / 2, 12 / 2, 12 / 2));
                 // ele tem uma condicao a definir se cai ou nao
                 let mass = 1;
                 let bodyspheres = new CANNON.Body({ mass });
@@ -121,23 +143,21 @@ const Game = () => {
         let cubes = []
         let positions = [];
 
-        const cubeGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+        const cubeGeometry = new THREE.SphereGeometry(1, 32, 32);
         const cubeMaterial = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
         const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-        const shape = new CANNON.Sphere(new CANNON.Vec3(0.5 / 2, 12 / 2, 12 / 2));
+        const shape = new CANNON.Sphere(new CANNON.Vec3(1 / 2, 12 / 2, 12 / 2));
         // ele tem uma condicao a definir se cai ou nao
         let mass = 7;
         let body = new CANNON.Body({ mass });
         body.position.copy(cube.position);
         world.addBody(body);
 
-        // let cubeBox = new THREE.Box3().setFromObject(cube);
-        let cubeBox = new THREE.Sphere(cube.position, 0.5);
-        // cubeBox.setFromObject(cube);
+        let cubeBox = new THREE.Sphere(cube.position, 1);
 
         // Create the body segments
         const bodySegments = [];
-        const segmentGeometry = new THREE.SphereGeometry(0.5, 12, 12);
+        const segmentGeometry = new THREE.SphereGeometry(1, 12, 12);
         const segmentMaterial = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
 
         // Initial body segments
@@ -169,7 +189,7 @@ const Game = () => {
         plane.position.y = -10; // Move the plane down by 1 unit
         plane.rotation.x = -Math.PI / 2; // Rotate the plane to be horizontal  
         plane.receiveShadow = true;
-        scene.add(plane);
+        // scene.add(plane);
 
         window.addEventListener('keydown', (event) => {
             if (event.key === 'w' || event.key === 'a' || event.key === 's' || event.key === 'd' || event.key === ' ') {
@@ -240,16 +260,11 @@ const Game = () => {
                 localNegativeXAxis.applyAxisAngle(localXAxis, turningangle);
 
                 setVelocityWithDelay(cubes, localNegativeXAxis, speed);
-
-
-                // console.log("w");
             }
             if (keysPressed.a) {
                 localNegativeXAxis.applyAxisAngle(localYAxis, turningangle);
 
                 setVelocityWithDelay(cubes, localNegativeXAxis, speed);
-
-                // console.log("a");
             }
             if (keysPressed.s) {
                 localNegativeXAxis.applyAxisAngle(localXAxis, -turningangle);
@@ -258,38 +273,32 @@ const Game = () => {
                     // Convert the rotated velocity back to a CANNON.Vec3 and apply it to the cube's body velocity
                     cube.cannonjs.velocity.set(localNegativeXAxis.x * speed, localNegativeXAxis.y * speed, localNegativeXAxis.z * speed);
                 });
-
-                // console.log("s");
             }
             if (keysPressed.d) {
                 localNegativeXAxis.applyAxisAngle(localYAxis, -turningangle);
 
                 setVelocityWithDelay(cubes, localNegativeXAxis, speed);
 
-                // console.log("d");
             }
 
             let currentSpeed = speed;
-
+            let speedBoostActive = false;
             if (keysPressed[' ']) {
-                if (!speedBoostActive) {
+                if (!speedBoostActive && speedBoostDuration > 0) {
                     speedBoostActive = true;
-                    currentSpeed *= 4; // Multiply the speed by 4
-
-                    // Start the speed boost timer
-                    speedBoostTimer = setTimeout(() => {
-                        speedBoostActive = false;
-                        currentSpeed = speed; // Reset the speed to the original value
-                    }, speedBoostDuration);
+                    onBoost();
+                    speedBoostDuration = speedBoostDuration - 100;
+                    console.log("boost: ", speedBoostDuration)
+                    currentSpeed = speed * 4; // Set the speed to 4 times the original speed
                 }
             } else {
                 // Reset the speed boost if the space key is released
                 if (speedBoostActive) {
-                    clearTimeout(speedBoostTimer);
                     speedBoostActive = false;
-                    currentSpeed = speed;
+                    currentSpeed = speed; // Reset the speed to the original value
                 }
             }
+
             setVelocityWithDelay(cubes, localNegativeXAxis, currentSpeed);
 
             cubes.forEach(cube => {
@@ -345,61 +354,9 @@ const Game = () => {
             world.step(1 / 140); // Step the physics world
         }
 
-        function createCube() {
-            let highResGeometry = new THREE.SphereGeometry(0.5, 32, 32);
-            let lowResGeometry = new THREE.SphereGeometry(0.5, 12, 12);
-            let material = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
-            let newCube = new THREE.Mesh(lowResGeometry, material);
-
-            if (!newCube) {
-                console.error('Failed to create new cube');
-                return;
-            }
-
-            const shape = new CANNON.Sphere(new CANNON.Vec3(0.5 / 2, 32 / 2, 32 / 2));
-            let mass = 7;
-            let newbody = new CANNON.Body({ mass });
-
-            // Position the new cube correctly based on the existing cubes
-            let lastCube = cubes[cubes.length - 1];
-            if (lastCube) {
-                // Calculate the direction vector from the second-to-last cube to the last cube
-                const directionVector = cubes.length > 1
-                    ? new THREE.Vector3().subVectors(lastCube.threejs.position, cubes[cubes.length - 2].threejs.position).normalize()
-                    : new THREE.Vector3(0, 0, -1); // Default direction if there's only one cube
-
-                // Set the position of the new cube based on the direction vector and a fixed distance
-                const distance = 1; // Adjust this value to control the distance between cubes
-                newCube.position.copy(lastCube.threejs.position).add(directionVector.multiplyScalar(distance));
-            } else {
-                // Initial position for the very first cube
-                newCube.position.set(0, 0, 0);
-            }
-
-            newbody.position.copy(newCube.position);
-
-            world.addBody(newbody);
-            let newcubeBox = new THREE.Sphere(newCube.position, 0.5);
-
-            if (newCube && scene) {
-                scene.add(newCube);
-            } else {
-                console.error('Failed to add new cube to the scene');
-            }
-
-            cubes.push({
-                threejs: newCube,
-                cannonjs: newbody,
-                box: newcubeBox,
-                previousPositions: [] // Array to store previous positions
-            });
-
-            console.log(cubes.length + "cubes length");
-            return newCube;
-        }
 
         function createSphere() {
-            let geometry = new THREE.SphereGeometry(0.5, 12, 12);
+            let geometry = new THREE.SphereGeometry(1, 12, 12);
             let material = new THREE.MeshPhongMaterial({ color: 0xff0000 });
             let newSphere = new THREE.Mesh(geometry, material);
 
@@ -421,9 +378,12 @@ const Game = () => {
                 if (cubeBoundingBox.intersectsSphere(sphereBox)) {
                     console.log('collision detected');
                     scene.remove(spheres[i]);
+                    onSphereCollected();
+                    onPlayerDamaged();
+                    speedBoostDuration = speedBoostDuration + 1000;
 
                     // Create a new body segment
-                    const segmentGeometry = new THREE.SphereGeometry(0.5, 12, 12);
+                    const segmentGeometry = new THREE.SphereGeometry(1, 12, 12);
                     const segmentMaterial = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
                     const newSegment = new THREE.Mesh(segmentGeometry, segmentMaterial);
 
@@ -446,8 +406,88 @@ const Game = () => {
 
                     // Update spheres and bounding boxes
                     spheres.push(newSphere);
-                    spheresBox.push(new THREE.Sphere(newSphere.position, 0.5));
+                    spheresBox.push(new THREE.Sphere(newSphere.position, 1));
                     spheres.splice(i, 1);
+                    spheresBox.splice(i, 1);
+                }
+            }
+        }
+
+        // Initialize AI snake
+        const aiSnake = {
+            body: [], // Initialize the body segments of the AI snake
+            direction: new THREE.Vector3(1, 0, 0), // Initialize the direction vector
+            speed: 0.1, // Speed of the AI snake
+        };
+
+        // Initialize the body segments of the AI snake
+        const aiGeometry = new THREE.SphereGeometry(1, 12, 12);
+        const aiMaterial = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
+
+        // Initial body segments
+        for (let i = 0; i < 5; i++) {
+            const segment = new THREE.Mesh(aiGeometry, aiMaterial);
+            segment.position.x = -i;
+            aiSnake.body.push(segment);
+            scene.add(segment);
+        }
+
+        // AI algorithm to control the AI snake's movement
+        function updateAISnake() {
+            // Find the nearest sphere to the AI snake head
+            let nearestSphere = null;
+            let minDistance = Infinity;
+
+            for (let sphere of spheres) {
+                let distance = aiSnake.body[0].position.distanceTo(sphere.position);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nearestSphere = sphere;
+                }
+            }
+
+            if (nearestSphere) {
+                // Calculate the direction vector towards the nearest sphere
+                const directionToSphere = nearestSphere.position.clone().sub(aiSnake.body[0].position).normalize();
+                aiSnake.direction.copy(directionToSphere);
+            }
+
+            // Move the AI snake's body segments
+            for (let i = aiSnake.body.length - 1; i > 0; i--) {
+                aiSnake.body[i].position.copy(aiSnake.body[i - 1].position);
+            }
+
+            aiSnake.body[0].position.add(aiSnake.direction.clone().multiplyScalar(aiSnake.speed));
+        }
+
+        // Collision detection for AI snake
+        function checkCollisionsAISnake() {
+            let aiHeadBoundingBox = new THREE.Box3().setFromObject(aiSnake.body[0]);
+
+            for (let i = spheres.length - 1; i >= 0; i--) {
+                let sphere = spheres[i];
+                let sphereBoundingBox = new THREE.Box3().setFromObject(sphere);
+
+                if (aiHeadBoundingBox.intersectsBox(sphereBoundingBox)) {
+                    console.log('AI snake collision with sphere detected');
+                    scene.remove(sphere);
+
+                    // Create a new body segment
+                    const newSegment = new THREE.Mesh(aiGeometry, aiMaterial);
+                    const lastSegment = aiSnake.body[aiSnake.body.length - 1];
+                    newSegment.position.copy(lastSegment.position).sub(aiSnake.direction);
+                    scene.add(newSegment);
+                    aiSnake.body.push(newSegment);
+
+                    // Create a new sphere
+                    let newSphere = createSphere();
+
+                    scene.add(newSphere);
+
+                    // Update spheres array
+                    spheres.push(newSphere);
+                    spheresBox.push(new THREE.Sphere(newSphere.position, 1));
+                    spheres.splice(i, 1); // Remove the collided sphere
                     spheresBox.splice(i, 1);
                 }
             }
@@ -460,15 +500,18 @@ const Game = () => {
             // Previous position of the cube
 
             let deltaTime = clock.getDelta();
-            requestAnimationFrame(animate);
 
             if (cubes.length > 0) {
                 camera.lookAt(cubes[0].threejs.position);
             }
 
+            updateAISnake();
             checkCollisions();
 
             updatePhysics(deltaTime);
+
+            // Check for collisions between the AI snake and other objects
+            checkCollisionsAISnake();
 
             // Update the body segments' positions
             for (let i = bodySegments.length - 1; i > 0; i--) {
@@ -490,8 +533,24 @@ const Game = () => {
             if (positions.length > MaxElements) {
                 positions.shift();
             }
-
+            requestAnimationFrame(animate);
             renderer.render(scene, camera);
+        };
+
+        const onSphereCollected = () => {
+            setScore(prevScore => prevScore + 10);
+        };
+
+        const onPlayerDamaged = () => {
+            setHealth(health => health + 1000);
+        };
+
+        const onBoost = () => {
+            setHealth(health => health - 100);
+        };
+
+        const getHealth = () => {
+            return health;
         };
 
         animate();
@@ -503,7 +562,15 @@ const Game = () => {
         };
     }, []);
 
-    return <div ref={mountRef} />;
+    // return <div ref={mountRef} />;
+
+    return (
+        <div style={{ position: 'relative' }}>
+            <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
+            <GameOverlay score={score} speedBoostDuration={health} />
+        </div>
+    );
 };
+
 
 export default Game;
