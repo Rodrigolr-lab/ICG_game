@@ -14,6 +14,7 @@ import posy from '../assets/Lycksele2/posy.png';
 import negy from '../assets/Lycksele2/negy.png';
 import posz from '../assets/Lycksele2/posz.png';
 import negz from '../assets/Lycksele2/negz.png';
+import { useNavigate } from 'react-router-dom';
 
 import { Canvas } from '@react-three/fiber';
 import GameOverlay from './GameOverlay';
@@ -42,9 +43,11 @@ const Game = () => {
     const delayFrames = 10;
     let speed = 20;
     let speedBoostDuration = 3000; // 3 seconds
-
+    const aiSnakes = []; // Array to hold all AI snakes
+    const navigate = useNavigate();
 
     useEffect(() => {
+
         // Cannon.js
         // Setup our world
         world = new CANNON.World();
@@ -170,7 +173,7 @@ const Game = () => {
 
         let axesHelpercube = new THREE.AxesHelper(1);
         // Add it as a child of the cube
-        // cube.add(axesHelpercube);
+        cube.add(axesHelpercube);
         cube.receiveShadow = true;
         scene.add(cube);
 
@@ -242,6 +245,7 @@ const Game = () => {
             }
         }
 
+
         let direction = new THREE.Vector3();
 
         function updatePhysics() {
@@ -268,15 +272,14 @@ const Game = () => {
             }
             if (keysPressed.s) {
                 localNegativeXAxis.applyAxisAngle(localXAxis, -turningangle);
-
-                cubes.forEach(cube => {
-                    // Convert the rotated velocity back to a CANNON.Vec3 and apply it to the cube's body velocity
-                    cube.cannonjs.velocity.set(localNegativeXAxis.x * speed, localNegativeXAxis.y * speed, localNegativeXAxis.z * speed);
-                });
+                setVelocityWithDelay(cubes, localNegativeXAxis, speed);
+                // cubes.forEach(cube => {
+                //     // Convert the rotated velocity back to a CANNON.Vec3 and apply it to the cube's body velocity
+                //     cube.cannonjs.velocity.set(localNegativeXAxis.x * speed, localNegativeXAxis.y * speed, localNegativeXAxis.z * speed);
+                // });
             }
             if (keysPressed.d) {
                 localNegativeXAxis.applyAxisAngle(localYAxis, -turningangle);
-
                 setVelocityWithDelay(cubes, localNegativeXAxis, speed);
 
             }
@@ -354,7 +357,6 @@ const Game = () => {
             world.step(1 / 140); // Step the physics world
         }
 
-
         function createSphere() {
             let geometry = new THREE.SphereGeometry(1, 12, 12);
             let material = new THREE.MeshPhongMaterial({ color: 0xff0000 });
@@ -376,7 +378,7 @@ const Game = () => {
                 let sphereBox = spheresBox[i];
 
                 if (cubeBoundingBox.intersectsSphere(sphereBox)) {
-                    console.log('collision detected');
+                    // console.log('collision detected');
                     scene.remove(spheres[i]);
                     onSphereCollected();
                     onPlayerDamaged();
@@ -413,32 +415,128 @@ const Game = () => {
             }
         }
 
-        // Initialize AI snake
-        const aiSnake = {
-            body: [], // Initialize the body segments of the AI snake
-            direction: new THREE.Vector3(1, 0, 0), // Initialize the direction vector
-            speed: 0.1, // Speed of the AI snake
-        };
+        function checkCollisionsSankes() {
+            let playerHeadBoundingBox = new THREE.Sphere(cube.position, 1);
 
-        // Initialize the body segments of the AI snake
-        const aiGeometry = new THREE.SphereGeometry(1, 12, 12);
-        const aiMaterial = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
+            // Iterate through the body segments of other snakes
+            for (let snake of aiSnakes) {
+                // Iterate through the body segments of the current snake
+                let snakeaHeadBoundingBox = new THREE.Sphere(snake.body[0].position, 0.5);
+                for (let segment of snake.body) {
+                    let segmentBoundingBox = new THREE.Sphere(segment.position, 0.5);
 
-        // Initial body segments
-        for (let i = 0; i < 5; i++) {
-            const segment = new THREE.Mesh(aiGeometry, aiMaterial);
-            segment.position.x = -i;
-            aiSnake.body.push(segment);
-            scene.add(segment);
+                    // Check for collision between player snake's head and current snake's body segment
+                    if (playerHeadBoundingBox.intersectsSphere(segmentBoundingBox)) {
+                        // console.log('Collision detected snake killed player');
+                        // Handle collision here, such as removing the player snake or reducing health
+                        removePlayerSnake(navigate);
+                        break; // Exit the loop since the collision is detected
+                    }
+                }
+
+                for (let segment of bodySegments) {
+                    let segmentBoundingBox = new THREE.Sphere(segment.position, 0.5);
+
+                    // Check for collision between player snake's head and current snake's body segment
+                    if (snakeaHeadBoundingBox.intersectsSphere(segmentBoundingBox)) {
+                        // console.log('Collision detected player killed snake');
+                        // Handle collision here, such as removing the player snake or reducing health
+                        removeSnake(snake);
+                        break; // Exit the loop since the collision is detected
+                    }
+                }
+
+                for (let i = bodySegments.length - 2; i > 4; i--) {
+                    // let segmentBoundingBox = new THREE.Box3().setFromObject(bodySegments[i + 1]);
+                    if (bodySegments.length > 5) {
+                        let segmentBoundingBox = new THREE.Sphere(bodySegments[i].position, 0.5);
+                        // Check for collision between player snake's head and current snake's body segment
+                        if (playerHeadBoundingBox.intersectsSphere(segmentBoundingBox)) {
+                            // console.log('Collision detected player');
+                            // Handle collision here, such as removing the player snake or reducing health
+                            removePlayerSnake(navigate);
+                            break; // Exit the loop since the collision is detected
+                        }
+                    }
+                }
+            }
         }
 
-        // AI algorithm to control the AI snake's movement
-        function updateAISnake() {
+        function removePlayerSnake(navigate) {
+            // Remove body segments from the scene
+            for (let segment of bodySegments) {
+                scene.remove(segment);
+            }
+            scene.remove(cube);
+            // Remove physics body from the world
+            world.remove(body);
+
+            // Clear the arrays storing body segments
+            // bodySegments = [];x
+
+            // Change the URL to the desired path
+            navigate('/');
+        }
+
+
+        function getRandomColor() {
+            return new THREE.Color(Math.random(), Math.random(), Math.random());
+        }
+
+        function getRandomPosition(range) {
+            return new THREE.Vector3(
+                (Math.random() - 0.5) * range,
+                (Math.random() - 0.5) * range,
+                (Math.random() - 0.5) * range
+            );
+        }
+
+        function createAISnake() {
+            const aiColor = getRandomColor(); // Generate a random color
+
+            const aiSnake = {
+                body: [], // Initialize the body segments of the AI snake
+                direction: new THREE.Vector3(
+                    Math.random() - 0.5,
+                    Math.random() - 0.5,
+                    Math.random() - 0.5
+                ).normalize(), // Initialize the direction vector
+                speed: 0.2, // Speed of the AI snake
+                color: aiColor,
+                boostDuration: 3000.
+            };
+
+            // Initialize the body segments of the AI snake
+            const initialPosition = getRandomPosition(50); // You can adjust the range as needed
+            const aiGeometry = new THREE.SphereGeometry(1, 12, 12);
+            const aiMaterial = new THREE.MeshPhongMaterial({ color: aiColor });
+
+            // Initial body segments
+            for (let i = 0; i < 5; i++) {
+                const segment = new THREE.Mesh(aiGeometry, aiMaterial);
+                segment.position.copy(initialPosition).x -= i; // Offset each segment
+                aiSnake.body.push(segment);
+                scene.add(segment);
+            }
+
+            aiSnakes.push(aiSnake);
+        }
+
+        function updateAISnake(aiSnake) {
             // Find the nearest sphere to the AI snake head
             let nearestSphere = null;
             let minDistance = Infinity;
+            let objects = [cube, ...spheres]
+            let mul = 1;
+            // Include heads of other snakes in the objects list
+            for (let otherSnake of aiSnakes) {
+                if (otherSnake.body[0].position < (100, 100, 100)) {
+                    objects.push(otherSnake.body[0]); // Assuming body[0] represents the head of each snake
+                }
 
-            for (let sphere of spheres) {
+            }
+
+            for (let sphere of objects) {
                 let distance = aiSnake.body[0].position.distanceTo(sphere.position);
                 if (distance < minDistance) {
                     minDistance = distance;
@@ -446,10 +544,18 @@ const Game = () => {
                 }
             }
 
+            // Add some random variation to the direction
+            aiSnake.direction.x += (Math.random() - 0.5) * 0.1;
+            aiSnake.direction.y += (Math.random() - 0.5) * 0.1;
+            aiSnake.direction.z += (Math.random() - 0.5) * 0.1;
+            aiSnake.direction.normalize();
+
             if (nearestSphere) {
                 // Calculate the direction vector towards the nearest sphere
                 const directionToSphere = nearestSphere.position.clone().sub(aiSnake.body[0].position).normalize();
-                aiSnake.direction.copy(directionToSphere);
+                aiSnake.direction.lerp(directionToSphere, 0.1);
+
+
             }
 
             // Move the AI snake's body segments
@@ -460,38 +566,107 @@ const Game = () => {
             aiSnake.body[0].position.add(aiSnake.direction.clone().multiplyScalar(aiSnake.speed));
         }
 
-        // Collision detection for AI snake
-        function checkCollisionsAISnake() {
+        // colisions bwtween ai snakes and spheres
+        function checkCollisionsAISnake(aiSnake) {
             let aiHeadBoundingBox = new THREE.Box3().setFromObject(aiSnake.body[0]);
-
             for (let i = spheres.length - 1; i >= 0; i--) {
                 let sphere = spheres[i];
                 let sphereBoundingBox = new THREE.Box3().setFromObject(sphere);
-
                 if (aiHeadBoundingBox.intersectsBox(sphereBoundingBox)) {
-                    console.log('AI snake collision with sphere detected');
+                    // console.log('AI snake collision with sphere detected');
                     scene.remove(sphere);
-
                     // Create a new body segment
+                    const aiGeometry = new THREE.SphereGeometry(1, 12, 12);
+                    const aiMaterial = new THREE.MeshPhongMaterial({ color: aiSnake.color });
                     const newSegment = new THREE.Mesh(aiGeometry, aiMaterial);
                     const lastSegment = aiSnake.body[aiSnake.body.length - 1];
-                    newSegment.position.copy(lastSegment.position).sub(aiSnake.direction);
+                    newSegment.position.copy(lastSegment.position);
                     scene.add(newSegment);
                     aiSnake.body.push(newSegment);
-
                     // Create a new sphere
                     let newSphere = createSphere();
-
                     scene.add(newSphere);
-
                     // Update spheres array
+                    // spheres.push(newSphere);
+                    // spheres.splice(i, 1); // Remove the collided sphere
+                    // Update spheres and bounding boxes
                     spheres.push(newSphere);
                     spheresBox.push(new THREE.Sphere(newSphere.position, 1));
-                    spheres.splice(i, 1); // Remove the collided sphere
+                    spheres.splice(i, 1);
                     spheresBox.splice(i, 1);
                 }
             }
         }
+
+        for (let i = 0; i < 3; i++) { // Change the number to create more AI snakes
+            createAISnake();
+        }
+
+        function checkSnakeCollisions() {
+            const allSnakes = aiSnakes;
+
+            for (let i = 0; i < allSnakes.length; i++) {
+                let snake1 = allSnakes[i];
+
+                let headBoundingBox = new THREE.Box3().setFromObject(snake1.body[0]);
+
+                for (let j = 0; j < allSnakes.length; j++) {
+                    if (i === j) continue;
+
+                    let snake2 = allSnakes[j];
+                    for (let k = 1; k < snake2.body.length; k++) {
+                        let segmentBoundingBox = new THREE.Box3().setFromObject(snake2.body[k]);
+
+                        if (headBoundingBox.intersectsBox(segmentBoundingBox)) {
+                            // console.log(`Collision detected between snake ${i} and snake ${j}`);
+                            removeSnake(snake1);
+
+                            i--;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        function generateSpheresAroundPosition(position, count) {
+            for (let i = 0; i < count; i++) {
+                const sphereGeometry = new THREE.SphereGeometry(1, 12, 12);
+                const sphereMaterial = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
+                const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+                sphere.castShadow = true;
+                sphere.receiveShadow = true;
+
+                let sphereBox = new THREE.Sphere(sphere.position, 0.5);
+                spheresBox.push(sphereBox);
+
+                // Randomize the position around the eliminated snake's position
+                const offsetX = Math.random() * 10 - 5;
+                const offsetY = Math.random() * 10 - 5;
+                const offsetZ = Math.random() * 10 - 5;
+
+                sphere.position.copy(position);
+                sphere.position.x += offsetX;
+                sphere.position.y += offsetY;
+                sphere.position.z += offsetZ;
+
+                scene.add(sphere);
+                spheres.push(sphere);
+            }
+        }
+
+        function removeSnake(snake) {
+            generateSpheresAroundPosition(snake.body[0].position, snake.body.length);
+            snake.body.forEach(segment => scene.remove(segment)); // Remove segments from the scene
+            // snake.controls.forEach(control => world.remo ve(control)); // Remove segments from the physics world
+
+            const index = aiSnakes.indexOf(snake);
+            if (index > -1) {
+                aiSnakes.splice(index, 1); // Remove the snake from the array
+            }
+        }
+
+
 
         let clock = new THREE.Clock();
         // Animation
@@ -505,13 +680,29 @@ const Game = () => {
                 camera.lookAt(cubes[0].threejs.position);
             }
 
-            updateAISnake();
+            // updateAISnake();
             checkCollisions();
-
             updatePhysics(deltaTime);
 
             // Check for collisions between the AI snake and other objects
-            checkCollisionsAISnake();
+            // checkCollisionsAISnake();
+
+            if (aiSnakes.length < 3) {
+                createAISnake();
+            }
+
+            aiSnakes.forEach(aiSnake => {
+                updateAISnake(aiSnake); // Update the AI snake's movement
+                checkCollisionsAISnake(aiSnake); // Check for collisions for the AI snake
+            });
+
+            checkCollisionsSankes();
+            checkSnakeCollisions(); // Check for collisions between snakes
+            // checkCollisionsSnake(playerSnake); // Check for collisions for the player snake
+
+
+            // console.log("ai snake?: ", aiSnakes.length);
+
 
             // Update the body segments' positions
             for (let i = bodySegments.length - 1; i > 0; i--) {
@@ -552,9 +743,7 @@ const Game = () => {
         const getHealth = () => {
             return health;
         };
-
         animate();
-
         // Clean up on unmount
         return () => {
             controls.dispose();
@@ -567,7 +756,11 @@ const Game = () => {
     return (
         <div style={{ position: 'relative' }}>
             <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
-            <GameOverlay score={score} speedBoostDuration={health} />
+            {/* <GameOverlay score={score} speedBoostDuration={health} /> */}
+            <GameOverlay
+                score={score}
+                speedBoostDuration={health}
+            />
         </div>
     );
 };
