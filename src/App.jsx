@@ -6,15 +6,19 @@ import Memu from './components/Memu'
 const App = () => {
     return (
         <main className='bg-slate-300/20'>
-            <Router>
-                {/* <Navbar /> */}
-                <Routes>
-                    <Route path="/" element={<Memu />} />
-                    <Route path="/play" element={<Game />} />
-                    <Route path="/projects" element={'projects'} />
-                    <Route path="/contact" element={'contact'} />
-                </Routes>
-            </Router>
+            <BrowserRouter basename="/ICG_game">
+                {/* Routes configuration */}
+
+                <Router>
+                    {/* <Navbar /> */}
+                    <Routes>
+                        <Route path="/" element={<Memu />} />
+                        <Route path="/play" element={<Game />} />
+                        <Route path="/projects" element={'projects'} />
+                        <Route path="/contact" element={'contact'} />
+                    </Routes>
+                </Router>
+            </BrowserRouter>
         </main>
     )
 }
