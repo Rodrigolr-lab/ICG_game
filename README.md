@@ -4,4 +4,4 @@ This template provides a minimal setup to get React working in Vite with HMR and
 
 Currently, two official plugins are available:
 
-- [play!!]( https://rodrigolr-lab.github.io/ICG_game/)
+- [play!!]( https://665eecc1dc7eba011e8bcaba--effervescent-hotteok-873e63.netlify.app)
