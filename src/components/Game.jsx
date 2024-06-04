@@ -291,7 +291,7 @@ const Game = () => {
                     speedBoostActive = true;
                     onBoost();
                     speedBoostDuration = speedBoostDuration - 100;
-                    console.log("boost: ", speedBoostDuration)
+                    // console.log("boost: ", speedBoostDuration)
                     currentSpeed = speed * 4; // Set the speed to 4 times the original speed
                 }
             } else {
@@ -369,6 +369,8 @@ const Game = () => {
 
             return newSphere;
         };
+
+
 
         // Adjusted checkCollisions function to handle collisions properly
         function checkCollisions() {
@@ -526,15 +528,8 @@ const Game = () => {
             // Find the nearest sphere to the AI snake head
             let nearestSphere = null;
             let minDistance = Infinity;
-            let objects = [cube, ...spheres]
-            let mul = 1;
-            // Include heads of other snakes in the objects list
-            for (let otherSnake of aiSnakes) {
-                if (otherSnake.body[0].position < (100, 100, 100)) {
-                    objects.push(otherSnake.body[0]); // Assuming body[0] represents the head of each snake
-                }
-
-            }
+            let objects = [cube, ...spheres];
+            let mul = new THREE.Vector3();
 
             for (let sphere of objects) {
                 let distance = aiSnake.body[0].position.distanceTo(sphere.position);
@@ -554,17 +549,39 @@ const Game = () => {
                 // Calculate the direction vector towards the nearest sphere
                 const directionToSphere = nearestSphere.position.clone().sub(aiSnake.body[0].position).normalize();
                 aiSnake.direction.lerp(directionToSphere, 0.1);
+            }
 
+            cubes.forEach(cube => {
+                const velocity = new THREE.Vector3(cube.cannonjs.velocity.x, cube.cannonjs.velocity.y, cube.cannonjs.velocity.z);
+                mul.copy(velocity);
+            });
 
+            // Calculate the probability based on the size of the snake
+            const sizeFactor = aiSnake.body.length / 20; // Adjust the divisor to control how quickly the probability increases with size
+            const probabilityToTargetPlayer = Math.min(sizeFactor, 1); // Cap the probability at 1 (100%)
+
+            // Determine if the AI snake will go after the player
+            if (Math.random() < probabilityToTargetPlayer) {
+                // Predict the player's future position
+                const predictionTime = 1; // Adjust as needed
+                const predictedPlayerPosition = cube.position.clone().add(mul.multiplyScalar(predictionTime));
+
+                // Calculate direction towards predicted position
+                const directionToPlayer = predictedPlayerPosition.clone().sub(aiSnake.body[0].position).normalize();
+
+                // Adjust AI snake's movement to intercept player
+                aiSnake.direction.lerp(directionToPlayer, 0.1).normalize();
+
+                console.log("player found");
             }
 
             // Move the AI snake's body segments
             for (let i = aiSnake.body.length - 1; i > 0; i--) {
                 aiSnake.body[i].position.copy(aiSnake.body[i - 1].position);
             }
-
             aiSnake.body[0].position.add(aiSnake.direction.clone().multiplyScalar(aiSnake.speed));
         }
+
 
         // colisions bwtween ai snakes and spheres
         function checkCollisionsAISnake(aiSnake) {
@@ -666,8 +683,6 @@ const Game = () => {
             }
         }
 
-
-
         let clock = new THREE.Clock();
         // Animation
         const animate = function () {
@@ -702,7 +717,9 @@ const Game = () => {
 
 
             // console.log("ai snake?: ", aiSnakes.length);
-
+            // Update player and AI snakes positions
+            // updatePlayerPosition(cube);
+            // aiSnakes.forEach(updateAISnakePosition);
 
             // Update the body segments' positions
             for (let i = bodySegments.length - 1; i > 0; i--) {
